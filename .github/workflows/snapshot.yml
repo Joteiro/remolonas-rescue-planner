@@ -1,0 +1,48 @@
+name: Snapshot diario del catálogo
+
+# Por qué GitHub Actions y no un cron local: tu portátil no está encendido todos
+# los días a la misma hora, y una serie con huecos vale mucho menos. Además el
+# historial de commits deja constancia verificable de que la recolección fue
+# diaria y consistente — eso es parte del argumento del proyecto.
+
+on:
+  schedule:
+    - cron: "15 6 * * *"     # 06:15 UTC = 08:15 en España (verano)
+  workflow_dispatch:          # botón para lanzarlo a mano
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Snapshot
+        run: python snapshot.py
+
+      - name: Tests
+        run: |
+          pip install pytest -q
+          python -m pytest tests/ -q
+
+      - name: Commit
+        run: |
+          git config user.name  "snapshot-bot"
+          git config user.email "actions@github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "sin cambios"
+          else
+            git commit -m "snapshot $(date -u +%Y-%m-%d)"
+            git push
+          fi

@@ -1,0 +1,8 @@
+# M1 (recolección y radar) no necesita nada fuera de la stdlib.
+# Esto es para el análisis y los módulos siguientes.
+pandas>=2.0
+lifelines>=0.29        # Kaplan-Meier con censura
+pulp>=2.8              # M2: motor de asignación
+scikit-learn>=1.4      # M3: modelo de riesgo de baja
+plotly>=5.20           # dashboard
+pytest>=8.0
