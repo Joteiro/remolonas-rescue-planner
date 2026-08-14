@@ -51,11 +51,23 @@ def serie_diaria(conn) -> list[dict]:
         GROUP BY snapshot_date
         ORDER BY snapshot_date
     """).fetchall()
+
+    # La media del descuento resultó engañosa con datos reales: la distribución
+    # está sesgada a la derecha (mediana 12,2 % frente a media 16,5 %). Añadimos
+    # la mediana para no citar sólo el número que más favorece.
+    medianas = {}
+    for (fecha,) in conn.execute("SELECT DISTINCT snapshot_date FROM observations"):
+        ds = [r[0] for r in conn.execute("""
+            SELECT 100.0 * (1 - price / compare_at_price) FROM observations
+            WHERE snapshot_date = ? AND compare_at_price > price AND price > 0""", (fecha,))]
+        medianas[fecha] = round(statistics.median(ds), 1) if ds else None
+
     return [{
         "fecha": r[0], "productos": r[1], "variantes": r[2],
         "disponibles": r[3],
         "pct_disponible": round(100 * r[3] / r[2], 1) if r[2] else None,
         "descuento_medio_pct": round(100 * r[4], 1) if r[4] else None,
+        "descuento_mediana_pct": medianas.get(r[0]),
         "variantes_con_descuento": r[5],
     } for r in rows]
 
@@ -164,24 +176,33 @@ def km_supervivencia(conn, dates: list[str]) -> dict:
 
 
 def por_categoria(conn) -> list[dict]:
-    """Mix y descuento por product_type en el último snapshot."""
-    rows = conn.execute("""
-        SELECT product_type,
-               COUNT(DISTINCT product_id) AS n,
-               AVG(CASE WHEN compare_at_price > price AND price > 0
-                        THEN 1.0 - price / compare_at_price END) AS desc_medio,
-               AVG(price) AS precio_medio
-        FROM observations
-        WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM observations)
-        GROUP BY product_type
-        ORDER BY n DESC
-    """).fetchall()
-    return [{
-        "categoria": r[0] or "(sin tipo)",
-        "referencias": r[1],
-        "descuento_medio_pct": round(100 * r[2], 1) if r[2] else None,
-        "precio_medio_eur": round(r[3], 2) if r[3] else None,
-    } for r in rows]
+    """Mix y descuento por etiqueta en el último snapshot.
+
+    Nota (14-ago-2026): originalmente esto agrupaba por `product_type`. Los datos
+    reales mostraron que el 99,6 % del catálogo lleva el mismo valor ('UPSELLING'),
+    así que ese campo no separa nada. La taxonomía real vive en `tags`, y por ahí
+    va ahora la agrupación. Ver taxonomia.py para el análisis completo.
+    """
+    cuenta: dict[str, list] = defaultdict(list)
+    for tags, price, cap in conn.execute("""
+            SELECT tags, price, compare_at_price FROM observations
+            WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM observations)"""):
+        desc = (1 - price / cap) if (cap and price and cap > price) else None
+        for t in (tags or "").split("|") or ["(sin etiqueta)"]:
+            cuenta[t or "(sin etiqueta)"].append((price, desc))
+
+    out = []
+    for tag, vals in cuenta.items():
+        descs = [d for _, d in vals if d is not None]
+        precios = [p for p, _ in vals if p]
+        out.append({
+            "categoria": tag,
+            "referencias": len(vals),
+            "descuento_medio_pct": round(100 * statistics.mean(descs), 1) if descs else None,
+            "descuento_mediana_pct": round(100 * statistics.median(descs), 1) if descs else None,
+            "precio_medio_eur": round(statistics.mean(precios), 2) if precios else None,
+        })
+    return sorted(out, key=lambda x: -x["referencias"])
 
 
 def por_tag(conn) -> list[dict]:
@@ -223,7 +244,8 @@ def imprimir(r: dict) -> None:
     print("Serie diaria (últimos 10 días):")
     for d in r["serie_diaria"][-10:]:
         print(f"  {d['fecha']}  {d['productos']:>4} prod  {d['variantes']:>4} var  "
-              f"{d['pct_disponible']!s:>5}% disp  desc.medio {d['descuento_medio_pct']!s:>5}%")
+              f"{d['pct_disponible']!s:>5}% disp  desc. media {d['descuento_medio_pct']!s:>5}% "
+              f"/ mediana {d['descuento_mediana_pct']!s:>5}%")
 
     if r["altas_y_bajas"]:
         print("\nAltas y bajas:")
@@ -252,10 +274,11 @@ def imprimir(r: dict) -> None:
     else:
         print(f"\n  Kaplan-Meier no disponible: {km.get('motivo')}")
 
-    print("\nTop categorías (último snapshot):")
-    for c in r["por_categoria"][:12]:
-        print(f"  {c['categoria'][:34]:<34} {c['referencias']:>4} ref  "
-              f"desc {c['descuento_medio_pct']!s:>5}%  precio medio {c['precio_medio_eur']!s:>6} €")
+    print("\nPor etiqueta (último snapshot):")
+    for c in r["por_categoria"][:14]:
+        print(f"  {c['categoria'][:30]:<30} {c['referencias']:>4} ref  "
+              f"desc medio {c['descuento_medio_pct']!s:>5}% / mediana {c['descuento_mediana_pct']!s:>5}%  "
+              f"precio {c['precio_medio_eur']!s:>6} €")
 
     print("\nTop tags:")
     for t in r["por_tag"][:12]:

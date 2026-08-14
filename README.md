@@ -17,7 +17,8 @@ un motor de asignación de lotes entrantes a cajas de suscripción.
 
 | Módulo | Qué hace | Datos | Estado |
 |---|---|---|---|
-| **M1 · Radar** | Snapshot diario del catálogo; rotación, altas/bajas, descuento efectivo, supervivencia de referencias | **Reales**, endpoint público | ✅ |
+| **M1a · Taxonomía** | Análisis transversal: cobertura del motivo de excedente, política de precios implícita, calidad de campos | **Reales**, endpoint público | ✅ |
+| **M1b · Radar** | Snapshot diario; rotación, altas/bajas, descuento efectivo, supervivencia de referencias | **Reales**, endpoint público | ✅ recolectando |
 | **M2 · Asignación** | Reparte un lote entrante entre cajas respetando exclusiones, peso y vida útil | Estructura real + suscriptores sintéticos | 🚧 |
 | **M3 · Riesgo de baja** | Probabilidad de cancelación a 4 entregas y euros de LTV en riesgo | **Sintéticos** | 🚧 |
 
@@ -41,7 +42,8 @@ pip install -r requirements.txt
 # edita USER_AGENT en snapshot.py y pon tu email real
 python snapshot.py --dry-run     # comprueba que responde
 python snapshot.py               # primer snapshot
-python radar.py                  # informe (necesita ≥2 días para altas/bajas)
+python taxonomia.py              # funciona con UN solo día
+python radar.py                  # necesita ≥2 días para altas/bajas
 ```
 
 Para la recolección diaria, activa el workflow de GitHub Actions
@@ -70,9 +72,11 @@ Consecuencia práctica: **no cites la vida media hasta tener tres semanas de ser
 ## Estructura
 
 ```
-snapshot.py                  recolector (M1)
-radar.py                     métricas de rotación
-tests/test_pipeline.py       6 tests, sin red
+snapshot.py                  recolector
+taxonomia.py                 análisis transversal (1 snapshot basta)
+radar.py                     métricas de rotación (serie temporal)
+HALLAZGOS.md                 bitácora de resultados, con sus cautelas
+tests/test_pipeline.py       11 tests, sin red
 data/catalog.sqlite          serie normalizada
 data/raw/*.json.gz           JSON crudo diario — nunca se borra
 SUPUESTOS.md                 qué es real y qué está simulado
@@ -84,6 +88,10 @@ SUPUESTOS.md                 qué es real y qué está simulado
   disponibles. La rotación medida es de **surtido**, no de inventario.
 - `available` en Shopify puede reflejar configuración de la tienda, no existencias.
 - No hay datos de pedidos, hogares ni incidencias: todo M3 es simulado.
-- Los productos de la caja de fruta y verdura no están necesariamente publicados
-  como referencias individuales, así que el radar cubre la Tienda Remolona mejor
-  que la caja.
+- **Confirmado el 14-ago-2026:** la caja de fruta y verdura NO se publica como
+  referencias individuales — son 2 variantes con tag `rm_caja`. Todo el análisis
+  describe la Tienda Remolona (despensa), no la caja de fresco. Es la limitación
+  más seria del proyecto.
+- **Confirmado el 14-ago-2026:** `product_type` no es informativo (99,6 % del
+  catálogo comparte valor) y `available` tampoco (99,6 % disponible). La
+  taxonomía explotable está en `tags`. Ver `HALLAZGOS.md`.

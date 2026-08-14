@@ -44,7 +44,7 @@ TIMEOUT = 30
 # Pon tu email real antes de la primera ejecución.
 USER_AGENT = (
     "remolonas-catalog-study/1.0 "
-    "(estudio personal de rotación de catálogo; contacto: TU_EMAIL@ejemplo.com)"
+    "(estudio personal de rotación de catálogo; contacto: juanatarciuk1997@gmail.com)"
 )
 
 ROOT = Path(__file__).resolve().parent

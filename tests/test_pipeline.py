@@ -125,3 +125,87 @@ def test_idempotencia(tmp_path):
         snapshot.store(conn, snapshot.normalize(prods, "2026-08-13"), meta, force=False)
     assert conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0] == 1
+
+
+# --------------------------------------------------------------------------- #
+# taxonomia.py
+# --------------------------------------------------------------------------- #
+
+import taxonomia  # noqa: E402
+
+
+def _items(specs):
+    """specs: lista de (tags, price, compare_at_price)."""
+    prods = []
+    for i, (tags, pr, cp) in enumerate(specs, start=100):
+        p = producto(i, f"P{i}", str(pr), None if cp is None else str(cp))
+        p["tags"] = list(tags)
+        prods.append(p)
+    return prods
+
+
+def _cargar(tmp_path, specs):
+    conn = snapshot.connect(tmp_path / "t.sqlite")
+    prods = _items(specs)
+    rows = snapshot.normalize(prods, "2026-08-14")
+    snapshot.store(conn, rows, {
+        "snapshot_date": "2026-08-14", "taken_at_utc": "2026-08-14T06:00:00+00:00",
+        "n_products": len(prods), "n_variants": len(rows), "n_pages": 1,
+        "raw_file": "n/a"}, force=True)
+    return conn
+
+
+def test_detecta_tags_como_categoria_unica(tmp_path):
+    conn = _cargar(tmp_path, [
+        (["Excedente"], 1.0, 2.0),
+        (["Fecha corta"], 1.0, 2.0),
+        (["Promoción producto"], 1.0, 2.0),
+    ])
+    r = taxonomia.construir(conn)
+    assert r["cardinalidad_tags"]["usado_como_categoria_unica"] is True
+    assert r["cardinalidad_tags"]["pct_con_un_solo_tag"] == 100.0
+
+
+def test_no_marca_categoria_unica_si_hay_multiples(tmp_path):
+    conn = _cargar(tmp_path, [
+        (["Excedente", "Productor local"], 1.0, 2.0),
+        (["Fecha corta"], 1.0, 2.0),
+    ])
+    r = taxonomia.construir(conn)
+    assert r["cardinalidad_tags"]["usado_como_categoria_unica"] is False
+    assert r["cardinalidad_tags"]["max_tags_por_producto"] == 2
+
+
+def test_cobertura_origen_separa_comercial_de_origen(tmp_path):
+    conn = _cargar(tmp_path, [
+        (["Excedente"], 1.0, 2.0),          # origen
+        (["Fecha corta"], 1.0, 2.0),        # origen
+        (["Promoción producto"], 1.0, 2.0), # comercial -> cuenta como SIN origen
+        (["Productor local"], 1.0, 2.0),    # comercial -> cuenta como SIN origen
+        ([], 1.0, 2.0),                     # sin nada
+    ])
+    co = taxonomia.construir(conn)["cobertura_origen"]
+    assert co["con_tag_origen"] == 2
+    assert co["sin_tag_origen"] == 3
+    assert co["solo_tag_comercial"] == 2
+    assert co["sin_ningun_tag"] == 1
+
+
+def test_campos_no_informativos_se_detectan(tmp_path):
+    """product_type dominante y available casi siempre true -> no informativos."""
+    conn = _cargar(tmp_path, [(["Excedente"], 1.0, 2.0)] * 5)
+    q = taxonomia.construir(conn)["calidad_campos"]
+    assert q["product_type"]["informativo"] is False
+    assert q["available"]["informativo"] is False
+
+
+def test_descuento_ignora_referencias_sin_pvp(tmp_path):
+    conn = _cargar(tmp_path, [
+        (["Excedente"], 1.0, 2.0),    # 50%
+        (["Excedente"], 3.0, 4.0),    # 25%
+        (["Excedente"], 5.0, None),   # sin PVP -> fuera del cálculo
+    ])
+    d = taxonomia.construir(conn)["distribucion_descuento"]
+    assert d["n_con_descuento"] == 2
+    assert d["n_sin_compare_at_price"] == 1
+    assert d["media"] == 37.5
