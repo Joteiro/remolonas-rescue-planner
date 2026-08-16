@@ -40,6 +40,11 @@ jobs:
           python rebuild.py
           python rebuild.py --check
 
+      - name: Snapshot
+        run: python snapshot.py
+
+      # El commit va PRIMERO: el snapshot es el unico dato irrecuperable
+      # del sistema. Un fallo de codigo no debe costar un dia de historia.
       - name: Commit
         run: |
           git config user.name  "snapshot-bot"
@@ -51,3 +56,13 @@ jobs:
             git commit -m "snapshot $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      - name: Reconstruir y verificar
+        run: |
+          python rebuild.py
+          python rebuild.py --check
+
+      - name: Tests
+        run: |
+          pip install pytest pulp -q
+          python -m pytest tests/ -q
