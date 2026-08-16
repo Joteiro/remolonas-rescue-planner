@@ -1,14 +1,14 @@
 name: Snapshot diario del catálogo
 
-# Por qué GitHub Actions y no un cron local: tu portátil no está encendido todos
-# los días a la misma hora, y una serie con huecos vale mucho menos. Además el
-# historial de commits deja constancia verificable de que la recolección fue
-# diaria y consistente — eso es parte del argumento del proyecto.
+# snapshot.py sólo usa la librería estándar, así que este job no instala nada.
+# Los tests viven en tests.yml y corren al hacer push. Mantenerlos separados
+# evita que un fallo de código cueste un día de datos — lo único de este
+# sistema que no se puede recuperar.
 
 on:
   schedule:
     - cron: "15 6 * * *"     # 06:15 UTC = 08:15 en España (verano)
-  workflow_dispatch:          # botón para lanzarlo a mano
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,21 +30,6 @@ jobs:
       - name: Snapshot
         run: python snapshot.py
 
-      - name: Tests
-        run: |
-          pip install pytest -q
-          python -m pytest tests/ -q
-
-      - name: Reconstruir y verificar
-        run: |
-          python rebuild.py
-          python rebuild.py --check
-
-      - name: Snapshot
-        run: python snapshot.py
-
-      # El commit va PRIMERO: el snapshot es el unico dato irrecuperable
-      # del sistema. Un fallo de codigo no debe costar un dia de historia.
       - name: Commit
         run: |
           git config user.name  "snapshot-bot"
@@ -56,13 +41,3 @@ jobs:
             git commit -m "snapshot $(date -u +%Y-%m-%d)"
             git push
           fi
-
-      - name: Reconstruir y verificar
-        run: |
-          python rebuild.py
-          python rebuild.py --check
-
-      - name: Tests
-        run: |
-          pip install pytest pulp -q
-          python -m pytest tests/ -q
