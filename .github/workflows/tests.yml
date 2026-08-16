@@ -1,0 +1,30 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'data/**'          # el commit diario del bot no dispara los tests
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Dependencias
+        run: pip install -q pytest pulp
+
+      - name: Tests
+        run: python -m pytest tests/ -q
+
+      - name: Reconstruir la base y verificar
+        run: |
+          python rebuild.py
+          python rebuild.py --check
