@@ -3,3 +3,12 @@ __pycache__/
 .venv/
 .DS_Store
 data/cron.log
+
+# La base de datos es un DERIVADO: se reconstruye desde data/raw/ con
+# `python rebuild.py`. Versionar un binario que escriben tu portátil y el
+# runner de Actions garantiza conflictos que git no sabe resolver.
+data/catalog.sqlite
+data/*.json
+
+# Carpeta de descarte: el puente no puede borrar ficheros.
+_to_delete/

@@ -123,6 +123,107 @@ en voz alta, no esconderla.
 514 referencias frente a las "300, con objetivo de llegar a 800" publicadas en
 diciembre de 2025. Están más cerca del objetivo de lo que se ha contado.
 
+### H8 · El peso falta en una de cada cuatro referencias, y se puede recuperar
+
+`grams` viene a cero en **132 de 515 variantes (25,6 %)**, concentrado en
+líquidos: zumos, aceites, caldos, leche. Sin peso no se puede componer una caja.
+
+Pero el título casi siempre lleva el formato — "Zumo 100% Natural de Manzana
+250 ml", "Aceite Minerva 1L", "Galletas TostaRica 4x42 g" — así que se recupera
+parseándolo. Resultado: **cobertura del 96,9 %**, de la cual un 22,6 % procede
+del título. Quedan 16 referencias sin resolver, casi todas vendidas por unidades
+("Fini Pop 5 Unidades", "Picoteo Playero").
+
+Mismo patrón que H5: el dato existe, pero no en el campo donde debería estar.
+
+---
+
+## 2026-08-15 · Día 2 (n = 2 snapshots)
+
+### H9 · CORRECCIÓN — `vendor` sí es informativo, y me equivoqué
+
+El día 1 di por bueno que `vendor` valía "REMOLONAS" en todo el catálogo. Lo
+leí de un resumen de la primera página y no lo comprobé contra la base. **Es
+falso.**
+
+Hay **94 proveedores distintos**. Sólo 12 referencias llevan la marca propia.
+
+| | |
+|---|---:|
+| Top 1 (HELIOS) | 9,4 % |
+| Top 5 | 23,4 % |
+| Top 10 | 35,9 % |
+| Top 20 | 54,4 % |
+| HHI | 244 |
+| Proveedores con 1 sola referencia | 21 |
+| Mediana de referencias por proveedor | 3,5 |
+
+Un HHI de 244 es un surtido **muy atomizado** — ningún proveedor manda. Coherente
+con un modelo que compra excedente donde aparece, no con acuerdos de suministro.
+Los nombres confirman lo publicado en prensa: HELIOS, PEPSICO, GULLÓN, PASTAS
+GALLO, BORGES, CARMENCITA.
+
+**Calidad del campo:** 94 valores crudos → 93 tras normalizar. `DANTZA`/`Dantza`
+son el mismo proveedor partido en dos. Y dos erratas probables: `MAYA ORGANIC`/
+`MAYA ORGANICS` (similitud 0,96) y `MUELOLIVA`/`MUEOLIVA` (0,94). En total **24
+referencias afectadas (4,7 %)** — poco volumen, suficiente para descuadrar
+cualquier informe agregado por proveedor.
+
+### H10 · `updated_at` se reescribe en bloque: no sirve como señal de cambio
+
+Entre el 14 y el 15 de agosto, `updated_at` cambió en **las 515 variantes**, y
+todas al mismo segundo exacto: `2026-08-15T08:55:51+02:00`.
+
+Eso no es actividad de negocio. Es un proceso automático — sincronización desde
+un ERP, o una app de Shopify — que toca el catálogo entero cada mañana.
+
+**Consecuencia práctica:** cualquiera que intente responder "¿qué productos
+cambiaron hoy?" usando `updated_at` obtendrá los 515, todos los días. Es el
+tercer campo de Shopify que en este catálogo no significa lo que su nombre
+sugiere, después de `product_type` y `available`.
+
+Cambios reales entre los dos días: **uno**. Un `compare_at_price`. Cero altas,
+cero bajas, cero cambios de precio.
+
+### H11 · La rotación se puede reconstruir hacia atrás — y es alta
+
+Monté `radar.py` asumiendo que había que esperar semanas para medir rotación.
+No hacía falta: cada producto trae su `published_at`, así que el histórico de
+**altas** sale de un solo snapshot.
+
+Altas por semana, últimas 8 semanas: **media 36,9** (min 28, max 50).
+
+| Antigüedad del catálogo actual | Referencias | % |
+|---|---:|---:|
+| ≤ 30 días | 181 | 35,2 % |
+| ≤ 90 días | 433 | 84,2 % |
+| ≤ 180 días | 491 | 95,5 % |
+| ≤ 365 días | 513 | 99,8 % |
+
+Mediana: **46 días** desde publicación (p25 22, p75 72).
+
+Sobre un catálogo estable de ~514 referencias, 37 altas semanales son una **tasa
+de renovación del 7,2 % semanal**: la mitad del surtido se renueva en unas
+**7 semanas**.
+
+**El control que hace falta.** ¿No será que el catálogo parece joven porque la
+empresa lo es? La operación comercial arrancó a mediados de 2024, hace ~25 meses.
+De 514 referencias, exactamente **1** tiene más de 12 meses. Si el surtido no
+rotara, hoy habría producto de 2024 en el catálogo. No lo hay. **La juventud del
+negocio no lo explica: es rotación.**
+
+**El sesgo que hay que declarar siempre:** esto es un análisis de supervivientes.
+Sólo se ven los productos que siguen publicados. De los que entraron en marzo y
+salieron en mayo no queda rastro, así que la distribución está sesgada hacia lo
+reciente por construcción. La conclusión sobre la tasa de altas es sólida; la
+inferencia de que salen tantas como entran descansa en que el catálogo esté en
+estado estacionario, y eso **sólo se confirma con más días de serie**.
+
+Rotación por etiqueta (mediana de días publicado): `Rescate` 2 d · `Fecha corta`
+30 d · `Excedente` 46 d · `Promoción producto` 50 d · `Productor local` 57 d ·
+`Pequeños productores` 127 d. El orden vuelve a tener sentido: lo urgente entra
+y sale rápido; lo de pequeños productores es surtido estable.
+
 ---
 
 ## Qué cambia esto en el plan
@@ -137,7 +238,11 @@ complementaria. Pero deja de ser el bloqueante.
 **Prioridad revisada de los módulos:**
 
 1. Taxonomía y precio por motivo — *listo, con datos reales*
-2. Rotación — *en curso, útil a partir del 4 de septiembre*
-3. Motor de asignación — el argumento se refuerza: con `Fecha corta` identificado
-   en sólo 59 de 514 referencias, priorizar por urgencia hoy sólo es posible en
-   el 11 % del surtido
+2. Rotación — *resuelta el día 2* vía `published_at`, sin esperar. La serie
+   diaria sigue corriendo porque es la única forma de medir **bajas**, pero ya
+   no bloquea nada.
+3. Motor de asignación — *construido*. Y cierra el círculo con H2: en el escenario
+   por defecto sólo el **84,7 % de los kg colocados** se prioriza con vida útil
+   conocida. El resto se coloca con un valor por defecto, porque su motivo de
+   excedente no está etiquetado. El motor puede priorizar por urgencia; el
+   catálogo sólo se lo permite en parte.

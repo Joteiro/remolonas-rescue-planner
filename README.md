@@ -9,7 +9,7 @@ negocio.
 Este repositorio mide esa rotación con datos públicos, y sobre esa base construye
 un motor de asignación de lotes entrantes a cajas de suscripción.
 
-**Estado:** M1 (recolección) operativo. M2 y M3 en construcción.
+**Estado:** M1 y M2 operativos. M3 en construcción.
 
 ---
 
@@ -19,7 +19,7 @@ un motor de asignación de lotes entrantes a cajas de suscripción.
 |---|---|---|---|
 | **M1a · Taxonomía** | Análisis transversal: cobertura del motivo de excedente, política de precios implícita, calidad de campos | **Reales**, endpoint público | ✅ |
 | **M1b · Radar** | Snapshot diario; rotación, altas/bajas, descuento efectivo, supervivencia de referencias | **Reales**, endpoint público | ✅ recolectando |
-| **M2 · Asignación** | Reparte un lote entrante entre cajas respetando exclusiones, peso y vida útil | Estructura real + suscriptores sintéticos | 🚧 |
+| **M2 · Asignación** | MILP que reparte lotes entrantes entre cajas respetando exclusiones, capacidad, variedad y vida útil | Lotes reales + hogares sintéticos | ✅ |
 | **M3 · Riesgo de baja** | Probabilidad de cancelación a 4 entregas y euros de LTV en riesgo | **Sintéticos** | 🚧 |
 
 Lo que es sintético está marcado como sintético, aquí y en la interfaz. Ver
@@ -44,6 +44,11 @@ python snapshot.py --dry-run     # comprueba que responde
 python snapshot.py               # primer snapshot
 python taxonomia.py              # funciona con UN solo día
 python radar.py                  # necesita ≥2 días para altas/bajas
+python cohortes.py               # rotación reconstruida desde published_at
+python proveedores.py            # concentración y calidad del campo vendor
+python productos.py              # cobertura de peso y categoría
+python asignacion.py             # motor de asignación vs heurística
+python sensibilidad.py           # ¿la ventaja aguanta otros escenarios?
 ```
 
 Para la recolección diaria, activa el workflow de GitHub Actions
@@ -53,6 +58,17 @@ Alternativa local, si prefieres no depender de Actions:
 ```cron
 15 8 * * *  cd /ruta/al/repo && /usr/bin/python3 snapshot.py >> data/cron.log 2>&1
 ```
+
+## Por qué la base de datos no está en git
+
+`data/catalog.sqlite` es un binario. Si lo versionas y lo escriben dos sitios —
+tu portátil y el runner de Actions — antes o después hay un conflicto que git no
+sabe resolver y hay que tirar una de las dos versiones.
+
+Los `.json.gz` no tienen ese problema: uno por día, escritos una vez, nunca
+tocados de nuevo. Así que **la fuente de verdad son los crudos** y la base es un
+derivado: `python rebuild.py` la regenera, `python rebuild.py --check` verifica
+que coincide. Misma idea que versionar un lockfile en vez de `node_modules`.
 
 ## Nota metodológica: censura
 
@@ -75,12 +91,32 @@ Consecuencia práctica: **no cites la vida media hasta tener tres semanas de ser
 snapshot.py                  recolector
 taxonomia.py                 análisis transversal (1 snapshot basta)
 radar.py                     métricas de rotación (serie temporal)
+cohortes.py                  rotación hacia atrás desde published_at
+proveedores.py               concentración, calidad y perfil por proveedor
+productos.py                 peso y categoría inferidos, con cobertura medida
+rebuild.py                   reconstruye la base desde data/raw/
+asignacion.py                M2 · MILP de asignación + heurística de contraste
+sensibilidad.py              barrido de escenarios para falsar el MILP
 HALLAZGOS.md                 bitácora de resultados, con sus cautelas
-tests/test_pipeline.py       11 tests, sin red
-data/catalog.sqlite          serie normalizada
-data/raw/*.json.gz           JSON crudo diario — nunca se borra
+tests/test_pipeline.py       21 tests, sin red
+data/raw/*.json.gz           JSON crudo diario — FUENTE DE VERDAD, versionado
+data/catalog.sqlite          derivado reconstruible, NO versionado
 SUPUESTOS.md                 qué es real y qué está simulado
 ```
+
+## Sobre el motor de asignación
+
+El MILP se compara siempre contra una heurística codiciosa que hace lo que haría
+una hoja de cálculo. Un optimizador sin nada con lo que compararse es una
+afirmación, no un resultado. En el barrido de `sensibilidad.py` (6 escenarios,
+distintas semillas y niveles de holgura) el MILP gana en los 6, con una mediana
+de **+51 puntos** de valor colocado y sin coste en fill rate de urgentes.
+
+Límite conocido: con ~1.100 perfiles distintos de exclusiones, CBC resuelve 60
+perfiles al óptimo en segundos pero no cierra 150 en 60 s. Los perfiles que
+quedan fuera se cubren con `cubrir_cola()`, que les sirve una caja ya definida
+compatible con sus exclusiones (~96 % de esos hogares). En producción tocaría
+solver comercial o generación de columnas.
 
 ## Limitaciones conocidas
 
