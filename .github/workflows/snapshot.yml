@@ -35,8 +35,10 @@ jobs:
           pip install pytest -q
           python -m pytest tests/ -q
 
-      - name: Verificar reconstrucción
-        run: python rebuild.py --check
+      - name: Reconstruir y verificar
+        run: |
+          python rebuild.py
+          python rebuild.py --check
 
       - name: Commit
         run: |
