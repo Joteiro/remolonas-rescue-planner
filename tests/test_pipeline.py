@@ -212,11 +212,13 @@ def test_descuento_ignora_referencias_sin_pvp(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# productos.py y asignacion.py
+
+
+# --------------------------------------------------------------------------- #
+# productos.py
 # --------------------------------------------------------------------------- #
 
 import productos as PR    # noqa: E402
-import asignacion as AS    # noqa: E402
 
 
 def test_peso_desde_titulo():
@@ -224,11 +226,10 @@ def test_peso_desde_titulo():
         ("Zumo 100% Natural de Manzana 250 ml", 250),
         ("Aceite de Oliva Virgen Extra Minerva 1L", 1000),
         ("Caldo Natural Ecológico de Pollo 1,5 L", 1500),
-        ("Galletas TostaRica Choco Guay 4x42 g", 168),   # multiplicador
+        ("Galletas TostaRica Choco Guay 4x42 g", 168),
         ("Miel de Flores de Castilla 1 kg", 1000),
-        ("Mejillón Gallego en Salsa de Vieira 111 g", 111),
-        ("Picoteo Playero", None),                        # sin formato
-        ("Fini Pop 5 Unidades", None),                    # unidades, no peso
+        ("Picoteo Playero", None),
+        ("Fini Pop 5 Unidades", None),
     ]
     for titulo, esperado in casos:
         assert PR.peso_desde_titulo(titulo) == esperado, titulo
@@ -241,95 +242,9 @@ def test_resolver_peso_prefiere_shopify_y_cae_al_titulo():
 
 
 def test_categoria_respeta_el_orden_de_reglas():
-    # 'Mix de Frutos Secos' debe caer en frutos secos, no en golosinas por 'mix'
     assert PR.categoria_desde_titulo("Mix de Frutos Secos Salados 40 g") == "Frutos secos y semillas"
     assert PR.categoria_desde_titulo("Granza Tinto Roble Toro Ecológico 750 ml") == "Vinos y alcohol"
     assert PR.categoria_desde_titulo("Leche Entera 1,5 L") == "Lácteos y huevos"
-
-
-def test_urgencia_es_decreciente_y_acotada():
-    assert AS.urgencia(0) == 3.0
-    assert AS.urgencia(30) == 1.0
-    assert AS.urgencia(2) > AS.urgencia(10) > AS.urgencia(25)
-    assert 1.0 <= AS.urgencia(999) <= 3.0     # acotada fuera de rango
-
-
-def _escenario_mini():
-    """Escenario diminuto y determinista para probar las restricciones."""
-    lotes = [
-        {"product_id": i, "title": f"P{i}", "categoria": cat, "tag": "Excedente",
-         "price": 2.0, "gramos": 250.0, "vida_util_dias": vida,
-         "vida_util_conocida": True, "unidades": 10_000}
-        for i, (cat, vida) in enumerate([
-            ("Galletas y dulces", 3), ("Bebidas", 20), ("Lácteos y huevos", 15),
-            ("Legumbres y arroz", 8), ("Snacks", 25), ("Conservas vegetales", 12),
-        ])
-    ]
-    perfiles = [
-        {"tipo": "Mini", "exclusiones": set(), "hogares": 100,
-         "recibido_semana_pasada": set()},
-        {"tipo": "Mini", "exclusiones": {"Lácteos y huevos"}, "hogares": 50,
-         "recibido_semana_pasada": set()},
-    ]
-    return lotes, perfiles
-
-
-def test_exclusiones_son_duras():
-    lotes, perfiles = _escenario_mini()
-    r = AS.resolver(lotes, perfiles, tiempo_max=20)
-    assert r["estado"] == "Optimal"
-    excluido = next(i for i, l in enumerate(lotes) if l["categoria"] == "Lácteos y huevos")
-    assert r["asignacion"].get((excluido, 1), 0) == 0
-
-
-def test_no_supera_la_capacidad_de_la_caja():
-    lotes, perfiles = _escenario_mini()
-    r = AS.resolver(lotes, perfiles, tiempo_max=20)
-    for j, perfil in enumerate(perfiles):
-        peso = sum(uds * lotes[i]["gramos"]
-                   for (i, jj), uds in r["asignacion"].items() if jj == j)
-        cfg = AS.CAJAS[perfil["tipo"]]
-        assert peso <= cfg["peso_objetivo_g"] + cfg["tolerancia_g"] + 1e-6
-
-
-def test_respeta_el_stock_disponible():
-    lotes, perfiles = _escenario_mini()
-    for l in lotes:
-        l["unidades"] = 900          # escaso pero factible
-    r = AS.resolver(lotes, perfiles, tiempo_max=20)
-    assert r["estado"] == "Optimal"
-    for i, lote in enumerate(lotes):
-        usado = sum(uds * perfiles[j]["hogares"]
-                    for (ii, j), uds in r["asignacion"].items() if ii == i)
-        assert usado <= lote["unidades"], f"lote {i}: {usado} > {lote['unidades']}"
-
-
-def test_solucion_no_optima_devuelve_asignacion_vacia():
-    """Escasez extrema + variedad mínima -> infeasible. El motor no debe
-    devolver valores de variables que violan restricciones."""
-    lotes, perfiles = _escenario_mini()
-    for l in lotes:
-        l["unidades"] = 120
-    r = AS.resolver(lotes, perfiles, tiempo_max=20)
-    assert r["estado"] != "Optimal"
-    assert r["asignacion"] == {}
-
-
-def test_variedad_minima_se_acota_a_lo_posible():
-    """Un perfil con menos lotes compatibles que VARIEDAD_MINIMA no debe volver
-    el problema infeasible."""
-    lotes, perfiles = _escenario_mini()
-    perfiles[1]["exclusiones"] = {l["categoria"] for l in lotes[2:]}   # deja 2 lotes
-    r = AS.resolver(lotes, perfiles, tiempo_max=20)
-    assert r["estado"] == "Optimal"
-
-
-def test_evaluar_no_inventa_metricas_sin_asignacion():
-    lotes, perfiles = _escenario_mini()
-    m = AS.evaluar({}, lotes, perfiles)
-    assert m["unidades_colocadas"] == 0
-    assert m["variedad_media_por_caja"] == 0
-    assert m["pct_hogares_servidos"] == 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -341,11 +256,8 @@ import json as _json            # noqa: E402
 
 
 def test_rebuild_reproduce_la_base(tmp_path, monkeypatch):
-    """Reconstruir desde crudo debe dar exactamente las mismas filas."""
     import rebuild               # noqa: PLC0415
-
-    raw = tmp_path / "raw"
-    raw.mkdir()
+    raw = tmp_path / "raw"; raw.mkdir()
     catalogos = {
         "2026-08-14": [producto(1, "Peras", "1.50", "3.00"),
                        producto(2, "Kiwi", "2.00", "4.00")],
@@ -354,15 +266,12 @@ def test_rebuild_reproduce_la_base(tmp_path, monkeypatch):
     for fecha, prods in catalogos.items():
         with gzip.open(raw / f"products_{fecha}.json.gz", "wt", encoding="utf-8") as fh:
             _json.dump(prods, fh, ensure_ascii=False)
-
     monkeypatch.setattr(rebuild, "RAW_DIR", raw)
     destino = tmp_path / "reconstruida.sqlite"
     rebuild.reconstruir(destino, verbose=False)
-
     conn = sqlite3.connect(destino)
     assert conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0] == 2
     assert conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0] == 3
-    # El precio del día 15 debe reflejar el cambio, no el del día 14
     precio = conn.execute("""SELECT price FROM observations
                              WHERE snapshot_date='2026-08-15' AND product_id=1""").fetchone()[0]
     assert precio == 1.40

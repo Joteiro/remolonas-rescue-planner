@@ -6,10 +6,11 @@ de lo que aparece cada semana. Eso convierte el surtido en una variable de salid
 no en un punto de partida, y cambia por completo cuál es la decisión difícil del
 negocio.
 
-Este repositorio mide esa rotación con datos públicos, y sobre esa base construye
-un motor de asignación de lotes entrantes a cajas de suscripción.
+Este repositorio mide esa dinámica con datos públicos y extrae de ahí insights de
+negocio: cómo se etiqueta y se precia el excedente, cómo se concentran los
+proveedores, y a qué ritmo rota el surtido.
 
-**Estado:** M1 y M2 operativos. M3 en construcción.
+**Estado:** análisis de catálogo operativo (recolección + taxonomía, precios, rotación y proveedores).
 
 ---
 
@@ -17,13 +18,11 @@ un motor de asignación de lotes entrantes a cajas de suscripción.
 
 | Módulo | Qué hace | Datos | Estado |
 |---|---|---|---|
-| **M1a · Taxonomía** | Análisis transversal: cobertura del motivo de excedente, política de precios implícita, calidad de campos | **Reales**, endpoint público | ✅ |
-| **M1b · Radar** | Snapshot diario; rotación, altas/bajas, descuento efectivo, supervivencia de referencias | **Reales**, endpoint público | ✅ recolectando |
-| **M2 · Asignación** | MILP que reparte lotes entrantes entre cajas respetando exclusiones, capacidad, variedad y vida útil | Lotes reales + hogares sintéticos | ✅ |
-| **M3 · Riesgo de baja** | Probabilidad de cancelación a 4 entregas y euros de LTV en riesgo | **Sintéticos** | 🚧 |
+| **Taxonomía** | Cobertura del motivo de excedente, política de precios implícita, calidad de campos | **Reales**, endpoint público | ✅ |
+| **Radar** | Snapshot diario; rotación, altas/bajas, descuento efectivo, supervivencia de referencias | **Reales**, endpoint público | ✅ recolectando |
+| **Cohortes** | Antigüedad del surtido reconstruida desde `published_at` (con sus cautelas) | **Reales**, endpoint público | ✅ |
+| **Proveedores** | Concentración, calidad del campo `vendor` y perfil por proveedor | **Reales**, endpoint público | ✅ |
 
-Lo que es sintético está marcado como sintético, aquí y en la interfaz. Ver
-[`SUPUESTOS.md`](SUPUESTOS.md).
 
 ## Origen de los datos
 
@@ -47,8 +46,6 @@ python radar.py                  # necesita ≥2 días para altas/bajas
 python cohortes.py               # rotación reconstruida desde published_at
 python proveedores.py            # concentración y calidad del campo vendor
 python productos.py              # cobertura de peso y categoría
-python asignacion.py             # motor de asignación vs heurística
-python sensibilidad.py           # ¿la ventaja aguanta otros escenarios?
 ```
 
 Para la recolección diaria, activa el workflow de GitHub Actions
@@ -95,35 +92,18 @@ cohortes.py                  rotación hacia atrás desde published_at
 proveedores.py               concentración, calidad y perfil por proveedor
 productos.py                 peso y categoría inferidos, con cobertura medida
 rebuild.py                   reconstruye la base desde data/raw/
-asignacion.py                M2 · MILP de asignación + heurística de contraste
-sensibilidad.py              barrido de escenarios para falsar el MILP
 HALLAZGOS.md                 bitácora de resultados, con sus cautelas
-tests/test_pipeline.py       21 tests, sin red
+tests/test_pipeline.py       16 tests, sin red
 data/raw/*.json.gz           JSON crudo diario — FUENTE DE VERDAD, versionado
 data/catalog.sqlite          derivado reconstruible, NO versionado
-SUPUESTOS.md                 qué es real y qué está simulado
 ```
 
-## Sobre el motor de asignación
-
-El MILP se compara siempre contra una heurística codiciosa que hace lo que haría
-una hoja de cálculo. Un optimizador sin nada con lo que compararse es una
-afirmación, no un resultado. En el barrido de `sensibilidad.py` (6 escenarios,
-distintas semillas y niveles de holgura) el MILP gana en los 6, con una mediana
-de **+51 puntos** de valor colocado y sin coste en fill rate de urgentes.
-
-Límite conocido: con ~1.100 perfiles distintos de exclusiones, CBC resuelve 60
-perfiles al óptimo en segundos pero no cierra 150 en 60 s. Los perfiles que
-quedan fuera se cubren con `cubrir_cola()`, que les sirve una caja ya definida
-compatible con sus exclusiones (~96 % de esos hogares). En producción tocaría
-solver comercial o generación de columnas.
 
 ## Limitaciones conocidas
 
 - El endpoint público expone el catálogo visible, no el stock real ni las unidades
   disponibles. La rotación medida es de **surtido**, no de inventario.
 - `available` en Shopify puede reflejar configuración de la tienda, no existencias.
-- No hay datos de pedidos, hogares ni incidencias: todo M3 es simulado.
 - **Confirmado el 14-ago-2026:** la caja de fruta y verdura NO se publica como
   referencias individuales — son 2 variantes con tag `rm_caja`. Todo el análisis
   describe la Tienda Remolona (despensa), no la caja de fresco. Es la limitación
