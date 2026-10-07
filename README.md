@@ -125,6 +125,26 @@ Alternativa local, si prefieres no depender de Actions:
 15 8 * * *  cd /ruta/al/repo && /usr/bin/python3 snapshot.py >> data/cron.log 2>&1
 ```
 
+## Reproducibilidad (Docker)
+
+El análisis no depende de la versión de Python ni del sistema: sólo usa la
+librería estándar más matplotlib (gráficos) y pytest (tests), con versiones
+pineadas en `requirements.txt`. Para garantizarlo en cualquier máquina:
+
+```bash
+docker build -t remolonas-rescue-planner .
+docker run --rm remolonas-rescue-planner
+```
+
+Por defecto el contenedor **reconstruye la base desde los crudos, corre los tests
+y regenera los gráficos** — la cadena completa, reproducida de cero.
+
+Qué garantiza y qué no: Docker fija el *entorno* y hace que `rebuild`, `tests` y
+`dashboard` den un resultado idéntico partiendo de los `.json.gz` versionados.
+Lo único no determinista es `snapshot.py`, porque sale a la web en vivo y el
+catálogo cambia cada día — por eso la fuente de verdad son los crudos, no la
+captura.
+
 ## Por qué la base de datos no está en git
 
 `data/catalog.sqlite` es un binario. Si lo versionas y lo escriben dos sitios —
@@ -162,6 +182,7 @@ proveedores.py               concentración, calidad y perfil por proveedor
 productos.py                 peso y categoría inferidos, con cobertura medida
 dashboard.py                 genera los gráficos de docs/ desde la base
 rebuild.py                   reconstruye la base desde data/raw/
+Dockerfile · Makefile        entorno reproducible y atajos (make all)
 HALLAZGOS.md                 bitácora de resultados, con sus cautelas
 docs/*.png                   gráficos de los hallazgos (embebidos arriba)
 tests/test_pipeline.py       16 tests, sin red

@@ -1,8 +1,8 @@
-# La recolección y el análisis sólo necesitan la librería estándar.
-# Esto es para generar los gráficos y correr los tests.
-matplotlib>=3.8        # dashboard.py
-pytest>=8.0            # tests
+# Versiones pineadas para reproducibilidad. La recolección y el análisis
+# (snapshot, rebuild, radar, cohortes, proveedores, productos, taxonomia)
+# sólo usan la librería estándar; esto es para gráficos y tests.
+matplotlib==3.9.2      # dashboard.py
+pytest==8.3.4          # tests
 
-# Opcional: sólo si se quiere la curva Kaplan-Meier en radar.py.
-# El módulo funciona sin ella (la calcula sólo si está instalada).
-# lifelines>=0.29
+# Opcional: curva Kaplan-Meier en radar.py. El módulo funciona sin ella.
+# lifelines==0.29.0

@@ -1,0 +1,8 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+# derivados reconstruibles: no entran a la imagen, se regeneran dentro
+data/catalog.sqlite
+data/cron.log
