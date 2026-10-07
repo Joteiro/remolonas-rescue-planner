@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 .DS_Store
 data/cron.log
+remolonas_html.txt
+estrategia_remolonas.md
 
 # La base de datos es un DERIVADO: se reconstruye desde data/raw/ con
 # `python rebuild.py`. Versionar un binario que escriben tu portátil y el

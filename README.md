@@ -10,7 +10,75 @@ Este repositorio mide esa dinámica con datos públicos y extrae de ahí insight
 negocio: cómo se etiqueta y se precia el excedente, cómo se concentran los
 proveedores, y a qué ritmo rota el surtido.
 
-**Estado:** análisis de catálogo operativo (recolección + taxonomía, precios, rotación y proveedores).
+**Estado:** análisis de catálogo operativo (recolección + taxonomía, precios, rotación y proveedores). Serie diaria recogida de forma autónoma desde el 14-ago-2026.
+
+---
+
+## Los hallazgos en una imagen
+
+Todo lo de abajo sale de **54 días de serie diaria** del catálogo público
+(14-ago → 6-oct-2026), recogidos sin intervención. Reproducible con
+`python dashboard.py`.
+
+### 1 · El catálogo es inventario vivo
+
+![Tamaño del catálogo en el tiempo](docs/01_catalogo_vivo.png)
+
+El surtido no es un punto de partida estable: oscila entre ~490 y ~540
+referencias según lo que entra y sale cada semana. En un supermercado de
+excedente, el catálogo es una variable de salida, no de entrada.
+
+### 2 · Entra y sale producto todas las semanas
+
+![Altas vs bajas por semana](docs/02_altas_bajas.png)
+
+Unas 55-60 referencias nuevas por semana, y otras tantas que desaparecen. Es
+flujo constante, no un catálogo que se llena una vez.
+
+### 3 · La mitad del surtido se renueva en ~4-5 semanas
+
+![Supervivencia de la cohorte inicial](docs/03_supervivencia.png)
+
+De las 513 referencias presentes el primer día, en 53 días desapareció el 27 %.
+Esta es la medición **rigurosa** de la rotación: altas y bajas observadas día a
+día, no estimadas desde fechas de publicación.
+
+### 4 · El motivo del excedente marca el precio
+
+![Descuento por motivo de excedente](docs/04_descuento_motivo.png)
+
+El precio sigue dos palancas distintas. Entre los motivos de **excedente real**
+(azul) hay un gradiente de urgencia claro: cuanto antes caduca o menos recuperable
+es el producto, mayor el descuento (Fecha corta 28 % > Rescate 21 % > Excedente
+15 %). **Innovación** (morado) es otra cosa: lanzamientos de producto nuevo —
+incluso no alimentario— con descuento de introducción, no urgencia. Y toda esta
+lógica sólo se puede aplicar al tercio del catálogo que declara su motivo
+(ver `HALLAZGOS.md`, H1-H2).
+
+### 5 · Surtido atomizado, pero inclinado a marcas grandes
+
+![Concentración de proveedores](docs/05_proveedores.png)
+
+94 proveedores distintos, ninguno dominante — pero más de la mitad del catálogo
+viene de una veintena, y entre los mayores pesan marcas conocidas. Conviven dos
+relatos: el del rescate de pequeños productores y el del ahorro en marca grande.
+
+### 6 · La rotación es un motor de novedad constante
+
+![Novedad percibida por el cliente](docs/06_novedad.png)
+
+La otra cara comercial de la rotación: un cliente que vuelve cada mes se encuentra
+con un 21 % del catálogo que no estaba la última vez. Material de recompra que se
+genera solo — y, a la vez, un riesgo de retención cuando desaparece un favorito.
+
+### 7 · El catálogo tiene un pulso semanal
+
+![Altas y bajas por día de la semana](docs/07_pulso_semanal.png)
+
+La rotación no es uniforme: tiene un ritmo operativo semanal. Entre semana se
+repone (picos de altas miércoles-viernes) y los **lunes hay una purga de ~40
+referencias**. El catálogo crece hacia el fin de semana —cuando la gente compra—
+y se limpia al empezar la semana. Sólo visible con la serie diaria.
 
 ---
 
@@ -46,6 +114,7 @@ python radar.py                  # necesita ≥2 días para altas/bajas
 python cohortes.py               # rotación reconstruida desde published_at
 python proveedores.py            # concentración y calidad del campo vendor
 python productos.py              # cobertura de peso y categoría
+python dashboard.py              # regenera los gráficos de docs/ desde la base
 ```
 
 Para la recolección diaria, activa el workflow de GitHub Actions
@@ -91,8 +160,10 @@ radar.py                     métricas de rotación (serie temporal)
 cohortes.py                  rotación hacia atrás desde published_at
 proveedores.py               concentración, calidad y perfil por proveedor
 productos.py                 peso y categoría inferidos, con cobertura medida
+dashboard.py                 genera los gráficos de docs/ desde la base
 rebuild.py                   reconstruye la base desde data/raw/
 HALLAZGOS.md                 bitácora de resultados, con sus cautelas
+docs/*.png                   gráficos de los hallazgos (embebidos arriba)
 tests/test_pipeline.py       16 tests, sin red
 data/raw/*.json.gz           JSON crudo diario — FUENTE DE VERDAD, versionado
 data/catalog.sqlite          derivado reconstruible, NO versionado

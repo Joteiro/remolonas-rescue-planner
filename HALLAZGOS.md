@@ -246,3 +246,87 @@ complementaria. Pero deja de ser el bloqueante.
    conocida. El resto se coloca con un valor por defecto, porque su motivo de
    excedente no está etiquetado. El motor puede priorizar por urgencia; el
    catálogo sólo se lo permite en parte.
+
+---
+
+## 2026-10-06 · Serie completa (54 snapshots, 14-ago → 6-oct)
+
+### H14 · La rotación, ya medida con rigor (resuelve H11 y H13)
+
+En agosto la rotación salía de `published_at` y la marqué como provisional,
+porque ese campo se reescribe al re-publicar (H13) y porque 5 días no bastaban.
+Con **54 días de serie diaria** ya no hace falta ningún atajo: la rotación se
+mide de **altas y bajas observadas día a día**. Números (despensa, sin la caja):
+
+| Métrica | Valor |
+|---|---|
+| Tamaño del catálogo | oscila 489–540, media ~500 |
+| Altas | ~55/semana |
+| Bajas | ~58/semana |
+| Tasa de renovación | **11 %/semana** |
+| Media vida del surtido | **la mitad se renueva en ~4,5 semanas** |
+| Supervivencia cohorte día 1 | de 513 refs, 373 vivas a los 53 días (**−27 %**) |
+| Referencias distintas en el período | 691 (vs ~500 visibles cualquier día) |
+
+La conclusión de agosto se sostiene y se refuerza: el catálogo es inventario
+vivo. El atajo de `published_at` **subestimaba** la rotación — la mitad del
+surtido se renueva aún más rápido (~4,5 semanas) de lo que aquella estimación
+sugería. La lección se mantiene: la medición honesta de rotación necesitaba la
+serie diaria, no un campo con un significado ambiguo.
+
+### H15 · Novedad percibida, medida (la cara comercial de H14)
+
+Mismo dato, lectura de marketing. Fracción del catálogo que es **nueva** para un
+cliente según cuándo volvió por última vez (medido sobre pares de snapshots
+separados por esa distancia):
+
+| Vuelve tras | Catálogo nuevo para él |
+|---|---|
+| 7 días | 8 % |
+| 14 días | 14 % |
+| 28 días | 21 % |
+
+Es un motor de novedad que se genera solo — argumento de recompra sin coste de
+producción. Y su reverso: un producto que un cliente adopta tiene ~1 de cada 4
+probabilidades de desaparecer en un mes, que es la fuga de retención a vigilar.
+
+### Gráficos
+
+Los seis hallazgos centrales están ilustrados en `docs/` y embebidos en el
+README. Se regeneran con `python dashboard.py` desde la base reconstruida.
+
+### H16 · El catálogo tiene un pulso semanal (estacionalidad confirmada)
+
+La rotación no es uniforme: sigue un ritmo operativo semanal claro. Medias por
+día de la semana sobre los 54 días:
+
+| Día | Altas | Bajas | Tamaño catálogo |
+|---|---:|---:|---:|
+| lun | +4 | **−40** | 480 |
+| mar | +5 | −9 | 476 |
+| mié | +19 | −2 | 491 |
+| jue | +11 | −2 | 500 |
+| vie | +13 | −0 | 512 |
+| sáb | +4 | −2 | 514 |
+| dom | +2 | −0 | 516 |
+
+El patrón: se repone entre semana (altas miércoles-viernes) y se purga el lunes
+(~40 bajas de golpe). El catálogo engorda hacia el fin de semana —cuando la gente
+compra— y se limpia al arrancar la semana. Sólo se ve con la serie diaria; es
+invisible en un único snapshot. Ilustrado en `docs/07_pulso_semanal.png`.
+
+### H17 · El precio responde a DOS palancas, no a una
+
+Al graficar el descuento por motivo (un valor por producto distinto, toda la
+serie) aparecen dos mecanismos distintos, y conviene no confundirlos:
+
+- **Excedente real — gradiente de urgencia.** Fecha corta 28 % > Rescate 21 % >
+  Excedente 15 %. Cuanto antes caduca o menos recuperable es, mayor el descuento.
+  Esta es la lógica de perecibilidad.
+- **Promo de novedad — otra palanca.** `Innovación` (30 %) encabeza la lista, pero
+  no es urgencia: son lanzamientos de producto nuevo (perfume para ropa,
+  fregasuelos, cremas de vinagre…), descontados para empujar la prueba.
+
+Matiza H3: hay una política de precios implícita, pero no es un solo eje de
+"urgencia" — es urgencia *dentro* del excedente real, más una palanca comercial
+separada para novedades. Ilustrado en `docs/04_descuento_motivo.png`.
